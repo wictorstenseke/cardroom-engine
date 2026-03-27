@@ -3,6 +3,7 @@ import {
   StudEngine,
   type HumanAction,
   type StudSnapshot,
+  type TablePlayer,
 } from './game/studEngine'
 import { formatCard } from './game/cards'
 import { handLabel, bestHandScore } from './game/pokerRank'
@@ -15,15 +16,70 @@ import {
 } from './settings/types'
 import './App.css'
 
-/** Seat bots along the top arc (degrees, 0 = right, -90 = top). */
-function opponentSeatAngles(count: number): number[] {
+/**
+ * Opponent seats on an upper ellipse (no seats at bottom — hero sits there).
+ * θ is standard math angle from +x; sin negative puts seats in upper half of felt.
+ */
+function opponentSeatPositions(count: number): { left: number; top: number }[] {
   if (count <= 0) return []
-  if (count === 1) return [-90]
-  const start = -158
-  const end = -22
+  const start = (-168 * Math.PI) / 180
+  const end = (-12 * Math.PI) / 180
+  const cx = 50
+  const cy = 30
+  const rx = 47
+  const ry = 26
   return Array.from({ length: count }, (_, i) => {
-    return start + ((end - start) * i) / (count - 1)
+    const t = count === 1 ? 0.5 : i / (count - 1)
+    const theta = start + (end - start) * t
+    return {
+      left: cx + rx * Math.cos(theta),
+      top: cy + ry * Math.sin(theta),
+    }
   })
+}
+
+type BettingUi =
+  | 'bring-in'
+  | 'bet'
+  | 'raise'
+  | 'matched'
+  | 'facing'
+  | 'allin-facing'
+
+function bettingState(
+  snap: StudSnapshot,
+  idx: number,
+  p: TablePlayer,
+): BettingUi | null {
+  if (p.folded || snap.phase !== 'betting') return null
+  const hb = snap.streetHighBet
+  const c = p.streetCommit
+  const bri = snap.bringInIndex
+
+  if (hb === 0) return null
+
+  if (c < hb) {
+    return p.allIn ? 'allin-facing' : 'facing'
+  }
+
+  if (
+    snap.street === 3 &&
+    bri === idx &&
+    snap.raisesThisStreet === 0 &&
+    snap.lastAggressorSeat === null &&
+    c > 0 &&
+    c === hb
+  ) {
+    return 'bring-in'
+  }
+
+  if (snap.lastAggressorSeat === idx) {
+    return snap.raisesThisStreet <= 1 ? 'bet' : 'raise'
+  }
+
+  if (c >= hb && hb > 0) return 'matched'
+
+  return null
 }
 
 type Screen = 'menu' | 'settings' | 'play'
@@ -321,11 +377,23 @@ function PlayScreen({
   const heroIdx = snap.players.findIndex((p) => p.isHuman)
   const hero = heroIdx >= 0 ? snap.players[heroIdx] : undefined
   const opponents = snap.players.filter((p) => !p.isHuman)
-  const angles = opponentSeatAngles(opponents.length)
+  const oppPositions = opponentSeatPositions(opponents.length)
+
+  const betLabels: Record<BettingUi, string> = {
+    'bring-in': 'Bring-in',
+    bet: 'Bet',
+    raise: 'Raise',
+    matched: 'Matched',
+    facing: 'To call',
+    'allin-facing': 'All-in',
+  }
 
   const renderSeat = (p: (typeof snap.players)[0], idx: number, heroSeat: boolean) => {
     const isDealer = idx === snap.dealerIndex
     const isActor = idx === snap.actionIndex && snap.phase === 'betting'
+    const b = bettingState(snap, idx, p)
+    const hb = snap.streetHighBet
+    const owe = hb > p.streetCommit ? hb - p.streetCommit : 0
     const hole =
       p.isHuman || showAllHoles
         ? p.hole.map((c, i) => (
@@ -347,13 +415,33 @@ function PlayScreen({
       showAllHoles && !p.folded ? bestHandScore([...p.hole, ...p.up]) : null
     return (
       <div
-        className={`player-card ${isActor ? 'acting' : ''} ${p.folded ? 'folded' : ''} ${heroSeat ? 'player-card--hero' : ''}`}
+        className={[
+          'player-card',
+          isActor ? 'acting' : '',
+          p.folded ? 'folded' : '',
+          heroSeat ? 'player-card--hero' : '',
+          b === 'bet' || b === 'bring-in' ? 'player-card--opened' : '',
+          b === 'raise' ? 'player-card--raised' : '',
+          b === 'matched' ? 'player-card--matched' : '',
+          b === 'facing' || b === 'allin-facing' ? 'player-card--facing-call' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
       >
         <div className="player-head">
           <span>{p.name}</span>
           {isDealer ? <span className="dealer-pill">D</span> : null}
           {p.folded ? <span className="fold-pill">Fold</span> : null}
         </div>
+        {b ? (
+          <div className={`bet-status bet-status--${b}`}>
+            {betLabels[b]}
+            {b === 'facing' && owe > 0 ? ` ${owe}` : ''}
+          </div>
+        ) : null}
+        {snap.phase === 'betting' && p.streetCommit > 0 ? (
+          <div className="street-chips">Round: {p.streetCommit}</div>
+        ) : null}
         <div className="stack">Stack {p.stack}</div>
         <div className="cards-row">{hole}</div>
         <div className="cards-row up">{up}</div>
@@ -379,78 +467,83 @@ function PlayScreen({
 
       <p className="status-msg">{snap.message}</p>
 
-      <div className="table-wrap">
-        <div className="felt">
-          <div className="felt-pot-badge" aria-hidden="true">
-            {snap.pot}
+      <div className="play-table-column">
+        <div className="table-wrap">
+          <div className="felt">
+            <div className="felt-pot-badge" aria-hidden="true">
+              {snap.pot}
+            </div>
+            <div className="seats-ring" aria-hidden="true" />
+            <div className="opponent-seats">
+              {opponents.map((p, i) => {
+                const idx = snap.players.findIndex((x) => x.id === p.id)
+                const pos = oppPositions[i] ?? { left: 50, top: 22 }
+                return (
+                  <div
+                    key={p.id}
+                    className="seat seat--opp"
+                    style={
+                      {
+                        left: `${pos.left}%`,
+                        top: `${pos.top}%`,
+                      } as CSSProperties
+                    }
+                  >
+                    {renderSeat(p, idx, false)}
+                  </div>
+                )
+              })}
+            </div>
+            {hero && heroIdx >= 0 ? (
+              <div className="seat seat--hero">{renderSeat(hero, heroIdx, true)}</div>
+            ) : null}
           </div>
-          <div className="seats-ring" aria-hidden="true" />
-          <div className="opponent-seats">
-            {opponents.map((p, i) => {
-              const idx = snap.players.findIndex((x) => x.id === p.id)
-              const ang = angles[i] ?? -90
-              return (
-                <div
-                  key={p.id}
-                  className="seat seat--opp"
-                  style={
-                    {
-                      '--seat-angle': `${ang}deg`,
-                    } as CSSProperties
-                  }
-                >
-                  {renderSeat(p, idx, false)}
-                </div>
-              )
-            })}
+        </div>
+
+        <div className="under-felt">
+          <div className="street-pill">
+            {snap.phase === 'betting'
+              ? `Street ${snap.street} · Ante ${snap.stakes.ante} · Small ${snap.stakes.smallBet} · Big ${snap.stakes.bigBet}`
+              : snap.phase}
           </div>
-          {hero && heroIdx >= 0 ? (
-            <div className="seat seat--hero">{renderSeat(hero, heroIdx, true)}</div>
+
+          {snap.phase === 'handSummary' ? (
+            <div className="summary-panel">
+              <p>{snap.lastSummary}</p>
+              <button type="button" className="btn primary" onClick={continueHand}>
+                Next hand
+              </button>
+            </div>
+          ) : null}
+
+          {snap.humanMustAct ? (
+            <div className="actions-bar">
+              {legal.includes('fold') ? (
+                <button type="button" className="btn danger" onClick={() => act({ type: 'fold' })}>
+                  Fold
+                </button>
+              ) : null}
+              {legal.includes('check') ? (
+                <button type="button" className="btn ghost" onClick={() => act({ type: 'check' })}>
+                  Check
+                </button>
+              ) : null}
+              {legal.includes('call') ? (
+                <button type="button" className="btn" onClick={() => act({ type: 'call' })}>
+                  Call
+                </button>
+              ) : null}
+              {legal.includes('raise') ? (
+                <button type="button" className="btn accent" onClick={() => act({ type: 'raise' })}>
+                  {snap.street === 3 && snap.stakes.bringIn < snap.stakes.smallBet
+                    ? 'Complete / Raise'
+                    : 'Raise'}
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </div>
-
-      <div className="street-pill">
-        {snap.phase === 'betting'
-          ? `Street ${snap.street} · Ante ${snap.stakes.ante} · Small ${snap.stakes.smallBet} · Big ${snap.stakes.bigBet}`
-          : snap.phase}
-      </div>
-
-      {snap.phase === 'handSummary' ? (
-        <div className="summary-panel">
-          <p>{snap.lastSummary}</p>
-          <button type="button" className="btn primary" onClick={continueHand}>
-            Next hand
-          </button>
-        </div>
-      ) : null}
-
-      {snap.humanMustAct ? (
-        <div className="actions-bar">
-          {legal.includes('fold') ? (
-            <button type="button" className="btn danger" onClick={() => act({ type: 'fold' })}>
-              Fold
-            </button>
-          ) : null}
-          {legal.includes('check') ? (
-            <button type="button" className="btn ghost" onClick={() => act({ type: 'check' })}>
-              Check
-            </button>
-          ) : null}
-          {legal.includes('call') ? (
-            <button type="button" className="btn" onClick={() => act({ type: 'call' })}>
-              Call
-            </button>
-          ) : null}
-          {legal.includes('raise') ? (
-            <button type="button" className="btn accent" onClick={() => act({ type: 'raise' })}>
-              {snap.street === 3 && snap.stakes.bringIn < snap.stakes.smallBet
-                ? 'Complete / Raise'
-                : 'Raise'}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   )
 }

@@ -52,6 +52,10 @@ export interface StudSnapshot {
   actionIndex: number | null
   humanMustAct: boolean
   raisesThisStreet: number
+  /** Current commitment to match this betting round (0 during check-orbit before a bet). */
+  streetHighBet: number
+  /** Seat index of the player who last increased the bet (bet/raise); null if none yet. */
+  lastAggressorSeat: number | null
   stakes: EffectiveStakes
   level: number
   handNumber: number
@@ -109,6 +113,8 @@ export class StudEngine {
   /** When true, players in `checkPending` must check or open before the street advances. */
   private checkRound = false
   private checkPending = new Set<number>()
+  /** Last seat that put in a raise / opening bet this street. */
+  private lastAggressorSeat: number | null = null
   stakes: EffectiveStakes
 
   constructor(settings: GameSettings, rng: () => number = Math.random) {
@@ -132,6 +138,8 @@ export class StudEngine {
       actionIndex: this.actionIndex,
       humanMustAct,
       raisesThisStreet: this.raisesThisStreet,
+      streetHighBet: this.highBet,
+      lastAggressorSeat: this.lastAggressorSeat,
       stakes: { ...this.stakes },
       level: this.level,
       handNumber: this.handNumber,
@@ -263,6 +271,7 @@ export class StudEngine {
 
     this.highBet = bring
     this.raisesThisStreet = 0
+    this.lastAggressorSeat = null
     this.checkRound = false
     this.checkPending.clear()
     this.street = 3
@@ -285,6 +294,7 @@ export class StudEngine {
     this.checkRound = false
     this.checkPending.clear()
     this.bringInIndex = null
+    this.lastAggressorSeat = null
   }
 
   private betUnit(): number {
@@ -377,6 +387,7 @@ export class StudEngine {
     }
     this.highBet = 0
     this.raisesThisStreet = 0
+    this.lastAggressorSeat = null
     this.checkRound = true
     this.checkPending.clear()
     const opener = this.openingSeatFourthPlus()
@@ -573,6 +584,7 @@ export class StudEngine {
         if (p.streetCommit > this.highBet) {
           this.highBet = p.streetCommit
           this.raisesThisStreet += 1
+          this.lastAggressorSeat = i
         }
         this.afterAction(i)
         return
@@ -583,6 +595,7 @@ export class StudEngine {
       this.pot += cost
       this.highBet = newHigh
       this.raisesThisStreet += 1
+      this.lastAggressorSeat = i
       if (p.stack === 0) p.allIn = true
       this.afterAction(i)
     }

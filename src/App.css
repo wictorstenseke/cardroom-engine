@@ -179,28 +179,40 @@
   font-size: 0.92rem;
 }
 
-.table-wrap {
+.play-table-column {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.table-wrap {
+  flex: 0 0 auto;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 0;
   overflow: hidden;
-  min-height: min(52vh, 480px);
+  min-height: min(48vh, 440px);
 }
 
 .felt {
   position: relative;
-  min-height: min(52vh, 480px);
+  min-height: min(48vh, 440px);
   height: 100%;
+  /* Extra bottom padding so hero sits in reserved strip; bots stay in upper ellipse only */
+  padding-bottom: clamp(7.5rem, 28vw, 10rem);
   background:
-    radial-gradient(ellipse 85% 65% at 50% 42%, #26734f 0%, #143828 55%, #0c2218 100%);
+    radial-gradient(ellipse 85% 62% at 50% 36%, #26734f 0%, #143828 55%, #0c2218 100%);
   border-radius: 16px;
 }
 
 .felt-pot-badge {
   position: absolute;
   left: 50%;
-  top: 42%;
+  top: 36%;
   transform: translate(-50%, -50%);
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
@@ -216,7 +228,7 @@
 
 .seats-ring {
   position: absolute;
-  inset: 8% 6% 28%;
+  inset: 5% 5% 32%;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.07);
   pointer-events: none;
@@ -225,31 +237,31 @@
 
 .opponent-seats {
   position: absolute;
-  left: 50%;
-  top: 44%;
-  width: 0;
-  height: 0;
+  inset: 0;
   z-index: 2;
+  pointer-events: none;
+}
+
+.opponent-seats .seat--opp {
+  pointer-events: auto;
 }
 
 .seat--opp {
   position: absolute;
-  left: 0;
-  top: 0;
-  transform: translate(-50%, -50%) rotate(var(--seat-angle, -90deg))
-    translateY(calc(-1 * min(36vw, 200px))) rotate(calc(-1 * var(--seat-angle, -90deg)));
+  transform: translate(-50%, -50%);
+  z-index: 2;
 }
 
 .seat--hero {
   position: absolute;
   left: 50%;
-  bottom: 0;
+  bottom: 0.35rem;
   transform: translateX(-50%);
-  width: min(100% - 1rem, 400px);
+  width: min(calc(100% - 1rem), 400px);
   z-index: 3;
   display: flex;
   justify-content: center;
-  padding-bottom: 0.5rem;
+  padding-bottom: 0;
 }
 
 .player-card {
@@ -285,6 +297,69 @@
 .player-card.acting {
   border-color: rgba(255, 220, 120, 0.55);
   box-shadow: 0 0 0 1px rgba(255, 220, 120, 0.2);
+}
+
+.player-card--opened {
+  border-color: rgba(100, 180, 255, 0.55);
+  box-shadow: 0 0 0 2px rgba(100, 180, 255, 0.2);
+}
+
+.player-card--raised {
+  border-color: rgba(255, 190, 80, 0.75);
+  box-shadow: 0 0 0 2px rgba(255, 190, 80, 0.35);
+}
+
+.player-card--matched {
+  border-color: rgba(120, 200, 150, 0.45);
+}
+
+.player-card--facing-call {
+  border-color: rgba(255, 160, 100, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 160, 100, 0.15);
+}
+
+.bet-status {
+  font-size: 0.62rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+  margin-bottom: 0.25rem;
+  text-align: center;
+}
+
+.bet-status--bring-in {
+  background: rgba(140, 100, 200, 0.35);
+  color: #e8d8ff;
+}
+
+.bet-status--bet {
+  background: rgba(80, 140, 220, 0.35);
+  color: #c8e0ff;
+}
+
+.bet-status--raise {
+  background: rgba(255, 170, 60, 0.4);
+  color: #1a1408;
+}
+
+.bet-status--matched {
+  background: rgba(80, 160, 110, 0.3);
+  color: #d0f0dc;
+}
+
+.bet-status--facing,
+.bet-status--allin-facing {
+  background: rgba(200, 90, 60, 0.3);
+  color: #ffd4c8;
+}
+
+.street-chips {
+  font-size: 0.65rem;
+  color: #9ebfb0;
+  margin-bottom: 0.2rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .player-card.folded {
@@ -348,15 +423,26 @@
   color: #cfe8d8;
 }
 
+.under-felt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 0.5rem 1rem;
+  width: 100%;
+}
+
 .street-pill {
-  margin-top: 0.65rem;
+  margin: 0;
   text-align: center;
   font-size: 0.78rem;
   color: #9cb0a8;
 }
 
 .summary-panel {
-  margin-top: 1rem;
+  margin: 0;
+  width: 100%;
+  max-width: 420px;
   padding: 1rem;
   background: rgba(0, 0, 0, 0.25);
   border-radius: 12px;
@@ -369,14 +455,16 @@
 }
 
 .actions-bar {
-  position: sticky;
-  bottom: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  padding: 0.75rem 0 0;
-  margin-top: 0.5rem;
-  background: linear-gradient(180deg, transparent, #0c1512 35%);
+  justify-content: center;
+  width: 100%;
+  max-width: 420px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  position: static;
 }
 
 .end-screen {
@@ -390,7 +478,11 @@
 
 @media (min-width: 900px) {
   .play {
-    max-width: 1100px;
+    max-width: 720px;
     margin: 0 auto;
+  }
+
+  .play-table-column {
+    max-width: 600px;
   }
 }

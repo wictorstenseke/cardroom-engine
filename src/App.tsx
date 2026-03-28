@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from 'react'
 import {
   StudEngine,
   type HumanAction,
@@ -16,30 +22,54 @@ import {
 } from './settings/types'
 import './App.css'
 
-/** Pause between each bot action so the table state is readable (ms). */
-const AI_ACTION_PAUSE_MS = 820
-
 /**
  * Opponent seats on an upper ellipse (no seats at bottom — hero sits there).
  * θ is standard math angle from +x; sin negative puts seats in upper half of felt.
+ * `narrow` pulls seats inward so panels fit on phone screens.
  */
-function opponentSeatPositions(count: number): { left: number; top: number }[] {
+function opponentSeatPositions(
+  count: number,
+  narrow: boolean,
+): { left: number; top: number }[] {
   if (count <= 0) return []
   const start = (-168 * Math.PI) / 180
   const end = (-12 * Math.PI) / 180
   const cx = 50
-  /* Lower arc so top seat stays on green; tuned with .felt padding + .seats-ring */
-  const cy = 41
-  const rx = 42
-  const ry = 25
+  const cy = narrow ? 42 : 41
+  const rx = narrow ? 27 : 42
+  const ry = narrow ? 18 : 25
   return Array.from({ length: count }, (_, i) => {
     const t = count === 1 ? 0.5 : i / (count - 1)
     const theta = start + (end - start) * t
-    return {
-      left: cx + rx * Math.cos(theta),
-      top: cy + ry * Math.sin(theta),
+    let left = cx + rx * Math.cos(theta)
+    let top = cy + ry * Math.sin(theta)
+    if (narrow) {
+      left = Math.min(78, Math.max(22, left))
+      top = Math.min(36, Math.max(15, top))
     }
+    return { left, top }
   })
+}
+
+function usePlayTableLayout(): { narrow: boolean; aiPauseMs: number } {
+  const [state, setState] = useState(() => ({
+    narrow: false,
+    aiPauseMs: 700,
+  }))
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 560px)')
+    const apply = () => {
+      const narrow = mq.matches
+      setState({
+        narrow,
+        aiPauseMs: narrow ? 520 : 680,
+      })
+    }
+    mq.addEventListener('change', apply)
+    apply()
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+  return state
 }
 
 type BettingUi =
@@ -335,6 +365,7 @@ function PlayScreen({
   onQuit: () => void
 }) {
   const { engine, snap } = game
+  const { narrow: narrowTable, aiPauseMs } = usePlayTableLayout()
 
   useEffect(() => {
     if (
@@ -347,9 +378,16 @@ function PlayScreen({
     const id = window.setTimeout(() => {
       engine.stepAiOnce()
       onRefresh()
-    }, AI_ACTION_PAUSE_MS)
+    }, aiPauseMs)
     return () => window.clearTimeout(id)
-  }, [engine, onRefresh, snap.actionIndex, snap.humanMustAct, snap.phase])
+  }, [
+    aiPauseMs,
+    engine,
+    onRefresh,
+    snap.actionIndex,
+    snap.humanMustAct,
+    snap.phase,
+  ])
 
   const legal = snap.humanMustAct ? engine.legalHumanActions() : []
 
@@ -362,6 +400,12 @@ function PlayScreen({
     engine.acknowledgeHandSummary()
     onRefresh()
   }
+
+  const opponentCount = snap.players.filter((p) => !p.isHuman).length
+  const oppPositions = useMemo(
+    () => opponentSeatPositions(opponentCount, narrowTable),
+    [opponentCount, narrowTable],
+  )
 
   if (snap.phase === 'youBusted' || snap.phase === 'youWonTable') {
     return (
@@ -382,7 +426,6 @@ function PlayScreen({
   const heroIdx = snap.players.findIndex((p) => p.isHuman)
   const hero = heroIdx >= 0 ? snap.players[heroIdx] : undefined
   const opponents = snap.players.filter((p) => !p.isHuman)
-  const oppPositions = opponentSeatPositions(opponents.length)
 
   const betLabels: Record<BettingUi, string> = {
     'bring-in': 'Bring-in',
@@ -507,7 +550,11 @@ function PlayScreen({
 
       <p className="status-msg">{snap.message}</p>
 
-      <div className="play-table-column">
+      <div
+        className={['play-table-column', narrowTable ? 'play-table-column--narrow' : '']
+          .filter(Boolean)
+          .join(' ')}
+      >
         <div className="table-wrap">
           <div className="felt">
             <div className="felt-pot-badge" aria-hidden="true">
@@ -556,32 +603,38 @@ function PlayScreen({
             </div>
           ) : null}
 
-          {snap.humanMustAct ? (
-            <div className="actions-bar">
-              {legal.includes('fold') ? (
-                <button type="button" className="btn danger" onClick={() => act({ type: 'fold' })}>
-                  Fold
-                </button>
-              ) : null}
-              {legal.includes('check') ? (
-                <button type="button" className="btn ghost" onClick={() => act({ type: 'check' })}>
-                  Check
-                </button>
-              ) : null}
-              {legal.includes('call') ? (
-                <button type="button" className="btn" onClick={() => act({ type: 'call' })}>
-                  Call
-                </button>
-              ) : null}
-              {legal.includes('raise') ? (
-                <button type="button" className="btn accent" onClick={() => act({ type: 'raise' })}>
-                  {snap.street === 3 && snap.stakes.bringIn < snap.stakes.smallBet
-                    ? 'Complete / Raise'
-                    : 'Raise'}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+          <div className="actions-slot">
+            {snap.humanMustAct ? (
+              <div className="actions-bar">
+                {legal.includes('fold') ? (
+                  <button type="button" className="btn danger" onClick={() => act({ type: 'fold' })}>
+                    Fold
+                  </button>
+                ) : null}
+                {legal.includes('check') ? (
+                  <button type="button" className="btn ghost" onClick={() => act({ type: 'check' })}>
+                    Check
+                  </button>
+                ) : null}
+                {legal.includes('call') ? (
+                  <button type="button" className="btn" onClick={() => act({ type: 'call' })}>
+                    Call
+                  </button>
+                ) : null}
+                {legal.includes('raise') ? (
+                  <button type="button" className="btn accent" onClick={() => act({ type: 'raise' })}>
+                    {snap.street === 3 && snap.stakes.bringIn < snap.stakes.smallBet
+                      ? 'Complete / Raise'
+                      : 'Raise'}
+                  </button>
+                ) : null}
+              </div>
+            ) : snap.phase === 'betting' && !snap.humanMustAct ? (
+              <p className="actions-waiting muted" aria-live="polite">
+                Other players are acting…
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

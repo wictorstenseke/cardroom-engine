@@ -537,12 +537,13 @@ export class StudEngine {
       this.players.map((pl) => ({ hole: pl.hole, up: pl.up })),
       i,
     )
+    /* Keep iterations modest so mobile UI stays responsive during stepAiOnce. */
     const mcIters =
       this.settings.difficulty === 'easy'
-        ? 160
+        ? 140
         : this.settings.difficulty === 'medium'
-          ? 300
-          : 440
+          ? 190
+          : 320
     const showdownEquity = estimateStudShowdownEquity(
       this.players.map((pl) => ({
         hole: pl.hole,

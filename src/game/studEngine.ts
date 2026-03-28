@@ -46,6 +46,49 @@ export interface EffectiveStakes {
   bringIn: number
 }
 
+/** Cumulative human session stats; updated when each hand moves to handSummary. */
+export interface SessionStats {
+  handsPlayed: number
+  handsWon: number
+  handsFolded: number
+  /** Wins by how many cards you held when you won (stud: 3 … 7). */
+  winsByHeroCardCount: Record<3 | 4 | 5 | 6 | 7, number>
+  /**
+   * Wins where you still had at least N cards when you won — i.e. you had “stayed past”
+   * the 3rd, 4th, 5th, or 6th card (N = 4…7).
+   */
+  winsAfterAtLeastCards: Record<4 | 5 | 6 | 7, number>
+  biggestPotShareWon: number
+  /** Largest full pot in a hand you won (any share). */
+  biggestFullPotWhenWon: number
+  totalChipsWonFromPots: number
+  showdownsContested: number
+  showdownsWon: number
+}
+
+function emptySessionStats(): SessionStats {
+  return {
+    handsPlayed: 0,
+    handsWon: 0,
+    handsFolded: 0,
+    winsByHeroCardCount: { 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 },
+    winsAfterAtLeastCards: { 4: 0, 5: 0, 6: 0, 7: 0 },
+    biggestPotShareWon: 0,
+    biggestFullPotWhenWon: 0,
+    totalChipsWonFromPots: 0,
+    showdownsContested: 0,
+    showdownsWon: 0,
+  }
+}
+
+function cloneSessionStats(s: SessionStats): SessionStats {
+  return {
+    ...s,
+    winsByHeroCardCount: { ...s.winsByHeroCardCount },
+    winsAfterAtLeastCards: { ...s.winsAfterAtLeastCards },
+  }
+}
+
 export interface StudSnapshot {
   phase: SessionPhase
   players: TablePlayer[]
@@ -65,6 +108,7 @@ export interface StudSnapshot {
   handNumber: number
   message: string
   lastSummary: string | null
+  sessionStats: SessionStats
 }
 
 export type HumanAction =
@@ -113,6 +157,7 @@ export class StudEngine {
   handNumber = 0
   message = ''
   lastSummary: string | null = null
+  sessionStats: SessionStats = emptySessionStats()
   private highBet = 0
   /** When true, players in `checkPending` must check or open before the street advances. */
   private checkRound = false
@@ -149,6 +194,7 @@ export class StudEngine {
       handNumber: this.handNumber,
       message: this.message,
       lastSummary: this.lastSummary,
+      sessionStats: cloneSessionStats(this.sessionStats),
     }
   }
 
@@ -190,6 +236,7 @@ export class StudEngine {
     this.phase = 'betweenHands'
     this.message = 'Session started. Deal first hand when ready.'
     this.lastSummary = null
+    this.sessionStats = emptySessionStats()
   }
 
   /** Call after hand summary to continue. */
@@ -411,6 +458,13 @@ export class StudEngine {
   }
 
   private awardPotToSingle(winnerId: string): void {
+    const human = this.players.find((p) => p.isHuman)
+    const humanStackBefore = human?.stack ?? 0
+    const humanFolded = human?.folded ?? true
+    const humanTotalCards = human ? human.hole.length + human.up.length : 0
+    const endStreet = this.street
+    const potSize = this.pot
+
     const w = this.players.find((p) => p.id === winnerId)
     if (w) {
       w.stack += this.pot
@@ -421,6 +475,16 @@ export class StudEngine {
     this.actionIndex = null
     this.message = 'Hand complete.'
     this.rotateDealer()
+
+    const humanPotShare = (human?.stack ?? 0) - humanStackBefore
+    this.applySessionHandEnd({
+      potSize,
+      humanPotShare,
+      endStreet,
+      humanFolded,
+      humanTotalCards,
+      humanParticipatedInShowdown: false,
+    })
   }
 
   private rotateDealer(): void {
@@ -430,6 +494,13 @@ export class StudEngine {
 
   private runShowdown(): void {
     const contenders = this.players.filter((p) => !p.folded)
+    const humanParticipatedInShowdown = contenders.some((p) => p.isHuman)
+    const human = this.players.find((p) => p.isHuman)
+    const humanStackBefore = human?.stack ?? 0
+    const humanFolded = human?.folded ?? true
+    const humanTotalCards = human ? human.hole.length + human.up.length : 0
+    const potSize = this.pot
+
     const layers = buildPotLayers(
       contenders.map((p) => ({ id: p.id, contributed: p.contributedPot })),
     )
@@ -463,6 +534,52 @@ export class StudEngine {
     this.actionIndex = null
     this.message = 'Showdown.'
     this.rotateDealer()
+
+    const humanPotShare = (human?.stack ?? 0) - humanStackBefore
+    this.applySessionHandEnd({
+      potSize,
+      humanPotShare,
+      endStreet: 7,
+      humanFolded,
+      humanTotalCards,
+      humanParticipatedInShowdown,
+    })
+  }
+
+  private applySessionHandEnd(opts: {
+    potSize: number
+    humanPotShare: number
+    endStreet: 3 | 4 | 5 | 6 | 7
+    humanFolded: boolean
+    humanTotalCards: number
+    humanParticipatedInShowdown: boolean
+  }): void {
+    this.sessionStats.handsPlayed += 1
+    if (opts.humanFolded) this.sessionStats.handsFolded += 1
+
+    if (opts.humanPotShare > 0) {
+      this.sessionStats.handsWon += 1
+      const c = Math.min(7, Math.max(3, opts.humanTotalCards)) as 3 | 4 | 5 | 6 | 7
+      this.sessionStats.winsByHeroCardCount[c] += 1
+      if (opts.humanTotalCards >= 4) this.sessionStats.winsAfterAtLeastCards[4] += 1
+      if (opts.humanTotalCards >= 5) this.sessionStats.winsAfterAtLeastCards[5] += 1
+      if (opts.humanTotalCards >= 6) this.sessionStats.winsAfterAtLeastCards[6] += 1
+      if (opts.humanTotalCards >= 7) this.sessionStats.winsAfterAtLeastCards[7] += 1
+      this.sessionStats.biggestPotShareWon = Math.max(
+        this.sessionStats.biggestPotShareWon,
+        opts.humanPotShare,
+      )
+      this.sessionStats.biggestFullPotWhenWon = Math.max(
+        this.sessionStats.biggestFullPotWhenWon,
+        opts.potSize,
+      )
+      this.sessionStats.totalChipsWonFromPots += opts.humanPotShare
+    }
+
+    if (opts.humanParticipatedInShowdown) {
+      this.sessionStats.showdownsContested += 1
+      if (opts.humanPotShare > 0) this.sessionStats.showdownsWon += 1
+    }
   }
 
   legalHumanActions(): HumanAction['type'][] {

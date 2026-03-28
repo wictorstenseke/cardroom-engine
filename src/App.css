@@ -200,6 +200,14 @@
   margin-top: 0.5rem;
 }
 
+.form-actions--center {
+  justify-content: center;
+  width: 100%;
+  max-width: 28rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .play {
   display: flex;
   flex-direction: column;
@@ -767,11 +775,23 @@
   background: rgba(0, 0, 0, 0.25);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .summary-panel p {
   margin: 0 0 0.75rem;
   line-height: 1.45;
+  width: 100%;
+}
+
+.summary-panel__actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 .actions-slot {
@@ -814,10 +834,89 @@
 .end-screen {
   text-align: center;
   padding-top: 3rem;
+  max-width: 26rem;
+  margin: 0 auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 .end-screen h1 {
   margin-bottom: 0.75rem;
+}
+
+.end-screen__message {
+  margin: 0 0 1.25rem;
+  line-height: 1.45;
+}
+
+.session-stats-end {
+  width: 100%;
+  max-width: 22rem;
+  margin: 0 auto 1.5rem;
+  padding: 1rem 1.1rem;
+  text-align: left;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+}
+
+.session-stats-end__title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+.session-stats-end__dl {
+  margin: 0;
+}
+
+.session-stats-end__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  margin: 0.35rem 0;
+  font-size: 0.86rem;
+}
+
+.session-stats-end__row dt {
+  margin: 0;
+  font-weight: 500;
+  color: #b8cfc4;
+}
+
+.session-stats-end__row dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.session-stats-end__row--indent dt {
+  padding-left: 0.5rem;
+  font-weight: 400;
+  color: #9cb0a8;
+}
+
+.session-stats-end__subhead {
+  margin: 0.85rem 0 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8aa396;
+}
+
+.session-stats-end__subhead:first-of-type {
+  margin-top: 0.25rem;
+}
+
+.session-stats-end__hint {
+  margin: 0 0 0.35rem;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  padding-left: 0.25rem;
 }
 
 @media (max-width: 560px) {

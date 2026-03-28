@@ -8,6 +8,7 @@ import {
 import {
   StudEngine,
   type HumanAction,
+  type SessionStats,
   type StudSnapshot,
   type TablePlayer,
 } from './game/studEngine'
@@ -171,6 +172,80 @@ function raiseActionLabel(snap: StudSnapshot): string {
     return 'Complete'
   }
   return 'Bet'
+}
+
+function SessionStatsSummary({ stats }: { stats: SessionStats }) {
+  if (stats.handsPlayed === 0) return null
+  const winPct = Math.round((100 * stats.handsWon) / stats.handsPlayed)
+  const foldPct = Math.round((100 * stats.handsFolded) / stats.handsPlayed)
+  const sdWinPct =
+    stats.showdownsContested > 0
+      ? Math.round((100 * stats.showdownsWon) / stats.showdownsContested)
+      : null
+
+  return (
+    <div className="session-stats-end">
+      <h2 className="session-stats-end__title">Statistik</h2>
+      <dl className="session-stats-end__dl">
+        <div className="session-stats-end__row">
+          <dt>Vunna händer</dt>
+          <dd>
+            {stats.handsWon} av {stats.handsPlayed} ({winPct}%)
+          </dd>
+        </div>
+        <div className="session-stats-end__row">
+          <dt>Du foldade</dt>
+          <dd>
+            {stats.handsFolded} händer ({foldPct}%)
+          </dd>
+        </div>
+        <div className="session-stats-end__subhead">Vinster efter hur många kort du hade</div>
+        {([3, 4, 5, 6, 7] as const).map((n) => (
+          <div key={n} className="session-stats-end__row session-stats-end__row--indent">
+            <dt>{n} kort</dt>
+            <dd>{stats.winsByHeroCardCount[n]}</dd>
+          </div>
+        ))}
+        <div className="session-stats-end__subhead">Vinster där du gått vidare efter 3:e–6:e kortet</div>
+        <p className="session-stats-end__hint muted">
+          (Minst 4–7 kort i handen när du vann potten.)
+        </p>
+        {(
+          [
+            [4, 'Efter 3 kort (minst 4 vid vinst)'],
+            [5, 'Efter 4 kort (minst 5)'],
+            [6, 'Efter 5 kort (minst 6)'],
+            [7, 'Efter 6 kort (alla sju)'],
+          ] as const
+        ).map(([k, label]) => (
+          <div key={k} className="session-stats-end__row session-stats-end__row--indent">
+            <dt>{label}</dt>
+            <dd>{stats.winsAfterAtLeastCards[k]}</dd>
+          </div>
+        ))}
+        <div className="session-stats-end__subhead">Mer</div>
+        <div className="session-stats-end__row">
+          <dt>Största vinst från en pott</dt>
+          <dd>{stats.biggestPotShareWon} chips</dd>
+        </div>
+        <div className="session-stats-end__row">
+          <dt>Största pott du vann (hela potten)</dt>
+          <dd>{stats.biggestFullPotWhenWon} chips</dd>
+        </div>
+        <div className="session-stats-end__row">
+          <dt>Totalt vunnet från potter</dt>
+          <dd>{stats.totalChipsWonFromPots} chips</dd>
+        </div>
+        <div className="session-stats-end__row">
+          <dt>Showdowns</dt>
+          <dd>
+            {stats.showdownsWon} vunna av {stats.showdownsContested}
+            {sdWinPct !== null ? ` (${sdWinPct}%)` : ''}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  )
 }
 
 type Screen = 'menu' | 'settings' | 'play'
@@ -502,8 +577,9 @@ function PlayScreen({
     return (
       <div className="app shell end-screen">
         <h1>{snap.phase === 'youBusted' ? 'Game over' : 'You won the table'}</h1>
-        <p>{snap.message}</p>
-        <div className="form-actions">
+        <p className="end-screen__message">{snap.message}</p>
+        <SessionStatsSummary stats={snap.sessionStats} />
+        <div className="form-actions form-actions--center">
           <button type="button" className="btn primary" onClick={onQuit}>
             Back to menu
           </button>
@@ -674,9 +750,11 @@ function PlayScreen({
           {snap.phase === 'handSummary' ? (
             <div className="summary-panel">
               <p>{snap.lastSummary}</p>
-              <button type="button" className="btn primary" onClick={continueHand}>
-                Next hand
-              </button>
+              <div className="summary-panel__actions">
+                <button type="button" className="btn primary" onClick={continueHand}>
+                  Next hand
+                </button>
+              </div>
             </div>
           ) : null}
 

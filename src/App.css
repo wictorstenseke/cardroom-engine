@@ -366,8 +366,9 @@
   flex-shrink: 0;
 }
 
+/* Heavy overlap like PokerStars — only a sliver of each left card shows */
 .cards-row--hero-line .card:not(:first-child) {
-  margin-left: -0.52em;
+  margin-left: -1.22em;
   box-shadow: -2px 0 5px rgba(0, 0, 0, 0.22);
 }
 
@@ -446,7 +447,7 @@
 }
 
 .seat--opp .cards-row--spread .card:not(:first-child) {
-  margin-left: -0.55em;
+  margin-left: -1.2em;
   box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
 }
 
@@ -483,7 +484,7 @@
 }
 
 .seat--opp .cards-row--hole-pocket .card:not(:first-child) {
-  margin-left: -0.65em;
+  margin-left: -1.08em;
 }
 
 .seat--opp .player-head {
@@ -665,7 +666,7 @@
 }
 
 .cards-row--hole-pocket .card:not(:first-child) {
-  margin-left: -0.65em;
+  margin-left: -1.08em;
   box-shadow: -2px 0 6px rgba(0, 0, 0, 0.35);
 }
 
@@ -856,11 +857,15 @@
   }
 
   .seat--opp .cards-row--spread .card:not(:first-child) {
-    margin-left: -0.48em;
+    margin-left: -1.05em;
   }
 
   .seat--opp .cards-row--hole-pocket .card:not(:first-child) {
-    margin-left: -0.55em;
+    margin-left: -0.95em;
+  }
+
+  .cards-row--hero-line .card:not(:first-child) {
+    margin-left: -1.05em;
   }
 
   .seat--opp .bet-status {

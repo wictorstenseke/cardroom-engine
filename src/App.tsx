@@ -23,29 +23,42 @@ import {
 import './App.css'
 
 /**
- * Opponent seats on an upper ellipse (no seats at bottom — hero sits there).
- * θ is standard math angle from +x; sin negative puts seats in upper half of felt.
- * `narrow` pulls seats inward so panels fit on phone screens.
+ * Opponent seats on an upper ellipse (no seats at bottom — hero sits there on desktop).
+ * Wider arc + slightly smaller radius when there are many bots so more fit on screen.
  */
 function opponentSeatPositions(
   count: number,
   narrow: boolean,
 ): { left: number; top: number }[] {
   if (count <= 0) return []
-  const start = (-168 * Math.PI) / 180
-  const end = (-12 * Math.PI) / 180
+  const spreadDeg =
+    count >= 7 ? 200 : count >= 6 ? 188 : count >= 5 ? 172 : 156
+  const start = ((-90 - spreadDeg / 2) * Math.PI) / 180
+  const end = ((-90 + spreadDeg / 2) * Math.PI) / 180
   const cx = 50
-  const cy = narrow ? 42 : 41
-  const rx = narrow ? 27 : 42
-  const ry = narrow ? 18 : 25
+  const cy =
+    narrow && count >= 6 ? 38 : narrow && count >= 5 ? 40 : narrow ? 42 : count >= 6 ? 40 : 41
+  let rx = narrow ? 28 : 42
+  let ry = narrow ? 19 : 25
+  if (count >= 6) {
+    rx *= narrow ? 0.88 : 0.93
+    ry *= narrow ? 0.86 : 0.9
+  } else if (count >= 5) {
+    rx *= narrow ? 0.94 : 0.97
+    ry *= narrow ? 0.91 : 0.95
+  }
   return Array.from({ length: count }, (_, i) => {
     const t = count === 1 ? 0.5 : i / (count - 1)
     const theta = start + (end - start) * t
     let left = cx + rx * Math.cos(theta)
     let top = cy + ry * Math.sin(theta)
     if (narrow) {
-      left = Math.min(78, Math.max(22, left))
-      top = Math.min(36, Math.max(15, top))
+      const minL = count >= 6 ? 14 : 20
+      const maxL = count >= 6 ? 86 : 78
+      const minT = count >= 6 ? 11 : 14
+      const maxT = count >= 6 ? 38 : 36
+      left = Math.min(maxL, Math.max(minL, left))
+      top = Math.min(maxT, Math.max(minT, top))
     }
     return { left, top }
   })
@@ -366,6 +379,7 @@ function PlayScreen({
 }) {
   const { engine, snap } = game
   const { narrow: narrowTable, aiPauseMs } = usePlayTableLayout()
+  const [aiDrive, setAiDrive] = useState(0)
 
   useEffect(() => {
     if (
@@ -378,9 +392,11 @@ function PlayScreen({
     const id = window.setTimeout(() => {
       engine.stepAiOnce()
       onRefresh()
+      setAiDrive((d) => d + 1)
     }, aiPauseMs)
     return () => window.clearTimeout(id)
   }, [
+    aiDrive,
     aiPauseMs,
     engine,
     onRefresh,
@@ -551,7 +567,11 @@ function PlayScreen({
       <p className="status-msg">{snap.message}</p>
 
       <div
-        className={['play-table-column', narrowTable ? 'play-table-column--narrow' : '']
+        className={[
+          'play-table-column',
+          narrowTable ? 'play-table-column--narrow' : '',
+          opponentCount >= 5 ? 'play-table-column--many-opp' : '',
+        ]
           .filter(Boolean)
           .join(' ')}
       >
@@ -581,11 +601,19 @@ function PlayScreen({
                 )
               })}
             </div>
-            {hero && heroIdx >= 0 ? (
+            {!narrowTable && hero && heroIdx >= 0 ? (
               <div className="seat seat--hero">{renderSeat(hero, heroIdx, true)}</div>
             ) : null}
           </div>
         </div>
+
+        {narrowTable && hero && heroIdx >= 0 ? (
+          <div className="hero-strip">
+            <div className="seat seat--hero seat--hero--dock">
+              {renderSeat(hero, heroIdx, true)}
+            </div>
+          </div>
+        ) : null}
 
         <div className="under-felt">
           <div className="street-pill">

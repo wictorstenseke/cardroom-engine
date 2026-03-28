@@ -465,7 +465,11 @@ export class StudEngine {
 
   legalHumanActions(): HumanAction['type'][] {
     if (!this.snapshot().humanMustAct) return []
-    const i = this.actionIndex!
+    return this.legalActionTypesForSeat(this.actionIndex!)
+  }
+
+  /** Legal actions for a seat (same rules as the human UI). */
+  private legalActionTypesForSeat(i: number): HumanAction['type'][] {
     const p = this.players[i]
     const toCall = Math.max(0, this.highBet - p.streetCommit)
     const rc = this.raiseCost(p)
@@ -487,6 +491,16 @@ export class StudEngine {
     return out
   }
 
+  /** Map an AI choice to a legal action so we never stall the betting round. */
+  private clampAiAction(seat: number, want: HumanAction): HumanAction {
+    const legal = this.legalActionTypesForSeat(seat)
+    if (legal.includes(want.type)) return want
+    if (legal.includes('call')) return { type: 'call' }
+    if (legal.includes('check')) return { type: 'check' }
+    if (legal.includes('raise')) return { type: 'raise' }
+    return { type: 'fold' }
+  }
+
   applyHuman(a: HumanAction): void {
     if (!this.snapshot().humanMustAct) return
     this.applyAction(this.actionIndex!, a)
@@ -502,7 +516,7 @@ export class StudEngine {
     if (p.isHuman) return false
     const ctx = this.buildAiContext(this.actionIndex)
     const choice = pickAiAction(ctx)
-    const mapped: HumanAction =
+    const mappedRaw: HumanAction =
       choice === 'check'
         ? { type: 'check' }
         : choice === 'call'
@@ -510,6 +524,7 @@ export class StudEngine {
           : choice === 'raise'
             ? { type: 'raise' }
             : { type: 'fold' }
+    const mapped = this.clampAiAction(this.actionIndex, mappedRaw)
     this.applyAction(this.actionIndex, mapped)
     return true
   }

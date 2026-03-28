@@ -6,32 +6,28 @@ export type AiAction = 'fold' | 'check' | 'call' | 'raise'
 
 export interface AiContext {
   difficulty: Difficulty
-  /** Full known cards for this player (hole + up). */
   hole: Card[]
   up: Card[]
   toCall: number
   pot: number
-  /** Cost to raise one limit increment (0 if cannot raise). */
   raiseIncrement: number
   canCheck: boolean
   canRaise: boolean
   stack: number
   street: 3 | 4 | 5 | 6 | 7
-  /** Opponent count still in hand (not folded). */
   activeOpponents: number
-  /** Aggression count on this street (opening bet = 1, each raise +1). */
   raisesThisStreet: number
-  /** Human was last to increase the bet — tighten calling range. */
   humanIsLastAggressor: boolean
+  /** Monte Carlo P(share pot at showdown) from fair information only (~0–1). */
+  showdownEquity: number
 }
 
 function noise(difficulty: Difficulty): number {
-  if (difficulty === 'easy') return (Math.random() - 0.5) * 0.35
-  if (difficulty === 'medium') return (Math.random() - 0.5) * 0.18
-  return (Math.random() - 0.5) * 0.09
+  if (difficulty === 'easy') return (Math.random() - 0.5) * 0.14
+  if (difficulty === 'medium') return (Math.random() - 0.5) * 0.09
+  return (Math.random() - 0.5) * 0.05
 }
 
-/** Map poker score to 0..1 for heuristics (not true equity). */
 function handStrength01(score: HandScore | null): number {
   if (!score) return 0
   const cat = score[0] / 8
@@ -39,12 +35,14 @@ function handStrength01(score: HandScore | null): number {
   return Math.min(1, cat * 0.82 + k * 0.18)
 }
 
-/**
- * How strong we "look" and "are" for calling / raising — visible cards weigh
- * heavily (representation / semi-bluff), full hand for real strength.
- */
 function playStrength(full: number, visible: number): number {
   return Math.max(full, visible * 0.88 + full * 0.12)
+}
+
+function difficultyMargin(d: Difficulty): number {
+  if (d === 'easy') return 0.02
+  if (d === 'medium') return 0.038
+  return 0.055
 }
 
 export function pickAiAction(ctx: AiContext): AiAction {
@@ -56,94 +54,66 @@ export function pickAiAction(ctx: AiContext): AiAction {
   s += noise(ctx.difficulty)
   s = Math.max(0, Math.min(1, s))
   const p = playStrength(s, v)
+  const eq = ctx.showdownEquity
 
-  const pressure = ctx.activeOpponents > 2 ? 0.04 : 0
+  const pressure = ctx.activeOpponents > 2 ? 0.025 : 0
 
   if (ctx.canCheck) {
-    if (s < 0.26 - pressure && ctx.difficulty === 'easy' && Math.random() < 0.12) {
+    const openEq =
+      ctx.street <= 4 ? 0.42 + pressure * 0.5 : 0.38 + pressure * 0.5
+    if (eq > openEq && ctx.canRaise && Math.random() < (ctx.difficulty === 'hard' ? 0.42 : 0.28)) {
       return 'raise'
     }
-    if (p < 0.32) return 'check'
-    if (p > 0.58 && ctx.canRaise && Math.random() < 0.45) return 'raise'
-    if (p > 0.48 && ctx.canRaise && v > 0.42 && Math.random() < 0.28) {
+    if (p < 0.3 - pressure && ctx.difficulty === 'easy' && Math.random() < 0.08) {
       return 'raise'
     }
+    if (p < 0.34) return 'check'
+    if (p > 0.55 && ctx.canRaise && Math.random() < 0.32) return 'raise'
+    if (v > 0.44 && ctx.canRaise && eq > 0.32 && Math.random() < 0.22) return 'raise'
     return 'check'
   }
 
   if (ctx.toCall > 0) {
-    if (ctx.stack <= ctx.toCall) return 'call'
-
     const potAfter = ctx.pot + ctx.toCall
-    const potOdds = ctx.pot / potAfter
+    const potShare = ctx.toCall / potAfter
 
-    const junkFold =
-      p < (ctx.difficulty === 'hard' ? 0.07 : ctx.difficulty === 'medium' ? 0.09 : 0.11) &&
-      v < 0.14
+    const margin =
+      difficultyMargin(ctx.difficulty) +
+      (ctx.humanIsLastAggressor ? 0.048 : 0) +
+      Math.min(0.065, Math.max(0, ctx.street - 3) * 0.014) +
+      (ctx.raisesThisStreet >= 2 ? 0.038 * (ctx.raisesThisStreet - 1) : 0) +
+      (ctx.activeOpponents > 2 ? -0.012 : 0)
 
-    if (junkFold && Math.random() < (ctx.difficulty === 'easy' ? 0.5 : 0.68)) {
-      return 'fold'
+    const needEquity = potShare + margin
+
+    if (ctx.stack <= ctx.toCall) {
+      return eq + noise(ctx.difficulty) * 0.04 >= potShare - 0.025 ? 'call' : 'fold'
     }
 
     if (ctx.canRaise) {
-      const strongRaise = p > 0.58 && Math.random() < (ctx.difficulty === 'hard' ? 0.52 : 0.38)
-      const semiBluff =
+      const bar =
+        ctx.street >= 6 ? 0.54 : ctx.street >= 5 ? 0.57 : ctx.street >= 4 ? 0.6 : 0.64
+      const freq = ctx.difficulty === 'hard' ? 0.48 : ctx.difficulty === 'medium' ? 0.34 : 0.22
+      if (eq > bar && Math.random() < freq) return 'raise'
+
+      const semi =
+        ctx.street >= 4 &&
         v > 0.4 &&
-        s > 0.14 &&
-        Math.random() <
-          (ctx.difficulty === 'easy' ? 0.12 : ctx.difficulty === 'medium' ? 0.22 : 0.32)
-      const thinValue =
-        p > 0.45 &&
-        p < 0.62 &&
-        Math.random() < (ctx.difficulty === 'hard' ? 0.2 : 0.12)
-      if (strongRaise || semiBluff || thinValue) return 'raise'
+        eq > 0.3 &&
+        eq < bar &&
+        Math.random() < (ctx.difficulty === 'hard' ? 0.18 : 0.1)
+      if (semi) return 'raise'
     }
 
-    /** Minimum hand “strength” to call — was too low via old `p > 0.16` always-call. */
-    const baseCall =
-      ctx.difficulty === 'easy' ? 0.2 : ctx.difficulty === 'medium' ? 0.26 : 0.3
-    const streetExtra = Math.min(0.1, Math.max(0, ctx.street - 3) * 0.025)
-    const vsHuman = ctx.humanIsLastAggressor ? 0.11 : 0
-    const vsMultiRaise =
-      ctx.raisesThisStreet >= 2 ? 0.06 * (ctx.raisesThisStreet - 1) : 0
-    const minStrengthToCall = Math.min(
-      0.62,
-      baseCall + streetExtra + vsHuman + vsMultiRaise,
-    )
+    const eqAdj = eq + noise(ctx.difficulty) * 0.03
+    if (eqAdj >= needEquity) return 'call'
 
-    /** Pot-odds path: only helps when pot is big vs price — not a free call. */
-    const looseCallBias =
-      ctx.difficulty === 'easy' ? 0.12 : ctx.difficulty === 'medium' ? 0.08 : 0.05
-    const potOddsCallLine = potOdds - looseCallBias - (ctx.humanIsLastAggressor ? 0.1 : 0)
+    if (eqAdj >= needEquity - 0.035 && Math.random() < 0.12) return 'call'
 
-    const hasShowdownValue = p >= minStrengthToCall
-    const hasPotOddsCall = p >= potOddsCallLine && p >= 0.14
-
-    if (hasShowdownValue || hasPotOddsCall) {
-      if (hasPotOddsCall && !hasShowdownValue) {
-        const peelCap =
-          ctx.humanIsLastAggressor && ctx.raisesThisStreet >= 2
-            ? 0.18
-            : ctx.humanIsLastAggressor
-              ? 0.32
-              : 0.55
-        if (Math.random() > peelCap) return 'fold'
-      }
-      return 'call'
-    }
-
-    const desperatePeel =
-      potOdds > 0.42 &&
-      v > 0.36 &&
-      ctx.street >= 5 &&
-      !ctx.humanIsLastAggressor &&
-      Math.random() < (ctx.difficulty === 'easy' ? 0.22 : 0.12)
-    if (desperatePeel) return 'call'
-
-    return Math.random() < (ctx.difficulty === 'easy' ? 0.18 : 0.12) ? 'call' : 'fold'
+    return 'fold'
   }
 
-  if (ctx.canRaise && p > 0.55) return 'raise'
+  if (ctx.canRaise && (eq > 0.52 || p > 0.52) && Math.random() < 0.35) return 'raise'
   return 'check'
 }
 

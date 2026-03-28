@@ -1,4 +1,8 @@
 import { pickAiAction, type AiContext } from './ai'
+import {
+  buildUnknownPoolForViewer,
+  estimateStudShowdownEquity,
+} from './studEquity'
 import type { Card } from './cards'
 import { compareDoorForBringIn, formatCard, freshDeck, shuffle } from './cards'
 import { bestHandScore, bestVisibleScore, compareScores, handLabel } from './pokerRank'
@@ -525,6 +529,29 @@ export class StudEngine {
       humanIdx >= 0 &&
       this.lastAggressorSeat === humanIdx &&
       this.raisesThisStreet > 0
+
+    const pool = buildUnknownPoolForViewer(
+      this.players.map((pl) => ({ hole: pl.hole, up: pl.up })),
+      i,
+    )
+    const mcIters =
+      this.settings.difficulty === 'easy'
+        ? 160
+        : this.settings.difficulty === 'medium'
+          ? 300
+          : 440
+    const showdownEquity = estimateStudShowdownEquity(
+      this.players.map((pl) => ({
+        hole: pl.hole,
+        up: pl.up,
+        folded: pl.folded,
+      })),
+      i,
+      pool,
+      mcIters,
+      this.rng,
+    )
+
     return {
       difficulty: this.settings.difficulty,
       hole: p.hole,
@@ -539,6 +566,7 @@ export class StudEngine {
       activeOpponents,
       raisesThisStreet: this.raisesThisStreet,
       humanIsLastAggressor,
+      showdownEquity,
     }
   }
 

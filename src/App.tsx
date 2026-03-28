@@ -182,64 +182,67 @@ function SessionStatsSummary({ stats }: { stats: SessionStats }) {
     stats.showdownsContested > 0
       ? Math.round((100 * stats.showdownsWon) / stats.showdownsContested)
       : null
+  const won = stats.handsWon
+  const pctOfWonHands = (winsInBucket: number) =>
+    won > 0 ? `${Math.round((100 * winsInBucket) / won)}%` : '—'
 
   return (
     <div className="session-stats-end">
-      <h2 className="session-stats-end__title">Statistik</h2>
+      <h2 className="session-stats-end__title">Session stats</h2>
       <dl className="session-stats-end__dl">
         <div className="session-stats-end__row">
-          <dt>Vunna händer</dt>
+          <dt>Hands won</dt>
           <dd>
-            {stats.handsWon} av {stats.handsPlayed} ({winPct}%)
+            {stats.handsWon} / {stats.handsPlayed} ({winPct}%)
           </dd>
         </div>
         <div className="session-stats-end__row">
-          <dt>Du foldade</dt>
+          <dt>Hands folded</dt>
           <dd>
-            {stats.handsFolded} händer ({foldPct}%)
+            {stats.handsFolded} ({foldPct}%)
           </dd>
         </div>
-        <div className="session-stats-end__subhead">Vinster efter hur många kort du hade</div>
+        <div className="session-stats-end__subhead">Wins by cards when you won</div>
         {([3, 4, 5, 6, 7] as const).map((n) => (
           <div key={n} className="session-stats-end__row session-stats-end__row--indent">
-            <dt>{n} kort</dt>
+            <dt>{n} cards</dt>
             <dd>{stats.winsByHeroCardCount[n]}</dd>
           </div>
         ))}
-        <div className="session-stats-end__subhead">Vinster där du gått vidare efter 3:e–6:e kortet</div>
+        <div className="session-stats-end__subhead">Stayed in past 3rd–6th card</div>
         <p className="session-stats-end__hint muted">
-          (Minst 4–7 kort i handen när du vann potten.)
+          Share of pots you won where you still had at least 4–7 cards.
         </p>
         {(
           [
-            [4, 'Efter 3 kort (minst 4 vid vinst)'],
-            [5, 'Efter 4 kort (minst 5)'],
-            [6, 'Efter 5 kort (minst 6)'],
-            [7, 'Efter 6 kort (alla sju)'],
+            [4, 'Past 3rd card (≥4 when you won)'],
+            [5, 'Past 4th card (≥5)'],
+            [6, 'Past 5th card (≥6)'],
+            [7, 'Past 6th card (all seven)'],
           ] as const
         ).map(([k, label]) => (
           <div key={k} className="session-stats-end__row session-stats-end__row--indent">
             <dt>{label}</dt>
-            <dd>{stats.winsAfterAtLeastCards[k]}</dd>
+            <dd>{pctOfWonHands(stats.winsAfterAtLeastCards[k])}</dd>
           </div>
         ))}
-        <div className="session-stats-end__subhead">Mer</div>
+        <div className="session-stats-end__subhead">More</div>
         <div className="session-stats-end__row">
-          <dt>Största vinst från en pott</dt>
+          <dt>Biggest single win</dt>
           <dd>{stats.biggestPotShareWon} chips</dd>
         </div>
         <div className="session-stats-end__row">
-          <dt>Största pott du vann (hela potten)</dt>
+          <dt>Largest full pot you won</dt>
           <dd>{stats.biggestFullPotWhenWon} chips</dd>
         </div>
         <div className="session-stats-end__row">
-          <dt>Totalt vunnet från potter</dt>
+          <dt>Total won from pots</dt>
           <dd>{stats.totalChipsWonFromPots} chips</dd>
         </div>
         <div className="session-stats-end__row">
           <dt>Showdowns</dt>
           <dd>
-            {stats.showdownsWon} vunna av {stats.showdownsContested}
+            {stats.showdownsWon} won / {stats.showdownsContested}
             {sdWinPct !== null ? ` (${sdWinPct}%)` : ''}
           </dd>
         </div>

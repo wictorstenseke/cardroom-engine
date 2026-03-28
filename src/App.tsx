@@ -412,6 +412,30 @@ function PlayScreen({
         {formatCard(c)}
       </span>
     ))
+    const holeLabel =
+      p.isHuman || showAllHoles ? 'Hole cards' : 'Hidden'
+    const upZone = (
+      <div
+        className="hand-zone hand-zone--up"
+        aria-label="Up cards, visible to all"
+      >
+        <span className="hand-zone-label">Up</span>
+        <div className="cards-row cards-row--spread">{up}</div>
+      </div>
+    )
+    const holeZone = (
+      <div
+        className="hand-zone hand-zone--hole"
+        aria-label={
+          p.isHuman || showAllHoles
+            ? 'Your hole cards'
+            : 'Opponent hole cards, not visible'
+        }
+      >
+        <span className="hand-zone-label">{holeLabel}</span>
+        <div className="cards-row cards-row--hole-pocket">{hole}</div>
+      </div>
+    )
     const best =
       showAllHoles && !p.folded ? bestHandScore([...p.hole, ...p.up]) : null
     return (
@@ -444,8 +468,19 @@ function PlayScreen({
           <div className="street-chips">Round: {p.streetCommit}</div>
         ) : null}
         <div className="stack">Stack {p.stack}</div>
-        <div className="cards-row">{hole}</div>
-        <div className="cards-row up">{up}</div>
+        <div className="hand-zones">
+          {heroSeat ? (
+            <>
+              {upZone}
+              {holeZone}
+            </>
+          ) : (
+            <>
+              {holeZone}
+              {upZone}
+            </>
+          )}
+        </div>
         {best ? <div className="best-hand">{handLabel(best)}</div> : null}
       </div>
     )

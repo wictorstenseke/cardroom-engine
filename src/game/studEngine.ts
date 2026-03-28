@@ -529,6 +529,21 @@ export class StudEngine {
     return true
   }
 
+  /**
+   * Resolve the rest of the hand immediately (no delay between bot steps).
+   * Call when the human has folded and does not want to watch the table.
+   */
+  fastForwardHand(): void {
+    const maxSteps = 4000
+    let n = 0
+    while (this.phase === 'betting' && this.actionIndex !== null && n < maxSteps) {
+      n += 1
+      const p = this.players[this.actionIndex]
+      if (p.isHuman) break
+      this.stepAiOnce()
+    }
+  }
+
   private buildAiContext(i: number): AiContext {
     const p = this.players[i]
     const toCall =

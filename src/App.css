@@ -307,7 +307,7 @@
   left: 50%;
   bottom: clamp(0.45rem, 1.8vw, 0.85rem);
   transform: translateX(-50%);
-  width: min(calc(100% - 0.5rem), 460px);
+  width: auto;
   max-width: calc(100% - 0.75rem);
   z-index: 3;
   display: flex;
@@ -327,18 +327,12 @@
 
 .player-card--hero {
   min-width: 0;
-  width: 100%;
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
   background: rgba(0, 0, 0, 0.38);
   border-color: rgba(180, 220, 190, 0.2);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
-}
-
-.player-card--hero .hand-zones {
-  align-items: stretch;
-}
-
-.player-card--hero .hand-zone .cards-row {
-  justify-content: center;
 }
 
 .player-card--hero .player-head {
@@ -350,12 +344,64 @@
   text-align: center;
 }
 
-.player-card--hero .hand-zones {
-  gap: 0.38rem;
+.hand-zone--hero-line {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-top: 0.25rem;
+  box-shadow: none;
 }
 
-.player-card--hero .hand-zone {
-  padding: 0.26rem 0.38rem 0.36rem;
+.cards-row--hero-line {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0;
+  min-height: 2.15rem;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.cards-row--hero-line .card {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.cards-row--hero-line .card:not(:first-child) {
+  margin-left: -0.52em;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.22);
+}
+
+.cards-row--hero-line .card:nth-child(1) {
+  z-index: 1;
+}
+
+.cards-row--hero-line .card:nth-child(2) {
+  z-index: 2;
+}
+
+.cards-row--hero-line .card:nth-child(3) {
+  z-index: 3;
+}
+
+.cards-row--hero-line .card:nth-child(4) {
+  z-index: 4;
+}
+
+.cards-row--hero-line .card:nth-child(5) {
+  z-index: 5;
+}
+
+.cards-row--hero-line .card:nth-child(6) {
+  z-index: 6;
+}
+
+.cards-row--hero-line .card:nth-child(7) {
+  z-index: 7;
+}
+
+/* Hole cards (and river down card): hidden from others — sit slightly lower */
+.card.card--hero-sunk {
+  margin-top: 0.5rem;
 }
 
 /* Opponents: compact HUD — cards toward table, name/stack pill below (cf. PokerStars) */
@@ -752,6 +798,14 @@
   line-height: 1.35;
 }
 
+.actions-waiting-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+}
+
 .actions-bar {
   display: flex;
   flex-wrap: wrap;
@@ -833,12 +887,21 @@
   }
 
   .seat--hero {
-    width: min(calc(100% - 0.35rem), 100%);
+    width: auto;
+    max-width: 100%;
+  }
+
+  .player-card--hero {
+    width: max-content;
     max-width: 100%;
   }
 
   .player-card--hero .card {
-    font-size: clamp(0.75rem, 3.2vw, 0.9rem);
+    font-size: clamp(0.7rem, 3vw, 0.88rem);
+  }
+
+  .card.card--hero-sunk {
+    margin-top: 0.42rem;
   }
 }
 

@@ -23,14 +23,44 @@ import {
 } from './settings/types'
 import './App.css'
 
-function PlayingCardFace({ c, kind }: { c: Card; kind: 'hole' | 'up' }) {
+function PlayingCardFace({
+  c,
+  kind,
+  sunk = false,
+}: {
+  c: Card
+  kind: 'hole' | 'up'
+  /** Slightly lower — opponent-hidden hole cards (incl. 7th-street down). */
+  sunk?: boolean
+}) {
   const suitClass = isRedSuit(c.suit) ? 'card--red-suit' : 'card--black-suit'
   return (
-    <span className={['card', kind, suitClass].join(' ')}>
+    <span
+      className={['card', kind, suitClass, sunk ? 'card--hero-sunk' : '']
+        .filter(Boolean)
+        .join(' ')}
+    >
       <span className="card-face__rank">{rankDisplay(c.rank)}</span>
       <span className="card-face__suit">{suitSymbol(c.suit)}</span>
     </span>
   )
+}
+
+/** Stud deal order: 2 down, door + streets up, last down on river. */
+function heroCardsInTableOrder(
+  hole: Card[],
+  up: Card[],
+): { card: Card; faceKind: 'hole' | 'up'; sunk: boolean }[] {
+  const out: { card: Card; faceKind: 'hole' | 'up'; sunk: boolean }[] = []
+  if (hole[0]) out.push({ card: hole[0], faceKind: 'hole', sunk: true })
+  if (hole[1]) out.push({ card: hole[1], faceKind: 'hole', sunk: true })
+  for (const c of up) {
+    out.push({ card: c, faceKind: 'up', sunk: false })
+  }
+  if (hole.length >= 3) {
+    out.push({ card: hole[2], faceKind: 'hole', sunk: true })
+  }
+  return out
 }
 
 /**
@@ -412,6 +442,11 @@ function PlayScreen({
     onRefresh()
   }
 
+  const skipToResult = () => {
+    engine.fastForwardHand()
+    onRefresh()
+  }
+
   const continueHand = () => {
     engine.acknowledgeHandSummary()
     onRefresh()
@@ -491,6 +526,19 @@ function PlayScreen({
         <div className="cards-row cards-row--hole-pocket">{hole}</div>
       </div>
     )
+    const heroLine =
+      heroSeat && (p.isHuman || showAllHoles) ? (
+        <div
+          className="hand-zone hand-zone--hero-line"
+          aria-label="Your cards: lower row are hole cards hidden from opponents"
+        >
+          <div className="cards-row cards-row--hero-line">
+            {heroCardsInTableOrder(p.hole, p.up).map(({ card, faceKind, sunk }, i) => (
+              <PlayingCardFace key={i} c={card} kind={faceKind} sunk={sunk} />
+            ))}
+          </div>
+        </div>
+      ) : null
     const best =
       showAllHoles && !p.folded ? bestHandScore([...p.hole, ...p.up]) : null
     return (
@@ -523,19 +571,14 @@ function PlayScreen({
           <div className="street-chips">Round: {p.streetCommit}</div>
         ) : null}
         <div className="stack">Stack {p.stack}</div>
-        <div className="hand-zones">
-          {heroSeat ? (
-            <>
-              {upZone}
-              {holeZone}
-            </>
-          ) : (
-            <>
-              {holeZone}
-              {upZone}
-            </>
-          )}
-        </div>
+        {heroSeat ? (
+          heroLine
+        ) : (
+          <div className="hand-zones">
+            {holeZone}
+            {upZone}
+          </div>
+        )}
         {best ? <div className="best-hand">{handLabel(best)}</div> : null}
       </div>
     )
@@ -638,9 +681,16 @@ function PlayScreen({
                 ) : null}
               </div>
             ) : snap.phase === 'betting' && !snap.humanMustAct ? (
-              <p className="actions-waiting muted" aria-live="polite">
-                Other players are acting…
-              </p>
+              <div className="actions-waiting-wrap">
+                <p className="actions-waiting muted" aria-live="polite">
+                  Other players are acting…
+                </p>
+                {hero?.folded ? (
+                  <button type="button" className="btn accent" onClick={skipToResult}>
+                    Skip to result
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>

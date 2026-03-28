@@ -221,41 +221,43 @@ export default function App() {
 
   return (
     <div className="app shell shell--menu">
-      <header className="topbar topbar--menu">
-        <h1>Seven Card Stud</h1>
-        <p className="tagline">
-          Ante, bring-in, fixed limit — play money only.
-        </p>
-      </header>
-      <div className="menu-actions-wrap">
-        <div className="menu-main menu-main--actions">
-          <button type="button" className="btn primary" onClick={startGame}>
-            New table
-          </button>
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={() => setScreen('settings')}
-          >
-            Settings
-          </button>
+      <div className="menu-stack">
+        <header className="topbar topbar--menu">
+          <h1>Seven Card Stud</h1>
+          <p className="tagline">
+            Ante, bring-in, fixed limit — play money only.
+          </p>
+        </header>
+        <div className="menu-actions-wrap">
+          <div className="menu-main menu-main--actions">
+            <button type="button" className="btn primary" onClick={startGame}>
+              New table
+            </button>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => setScreen('settings')}
+            >
+              Settings
+            </button>
+          </div>
         </div>
+        <section className="menu-meta">
+          <h2>Current setup</h2>
+          <ul>
+            <li>Opponents: {settings.opponentCount}</li>
+            <li>Difficulty: {settings.difficulty}</li>
+            <li>
+              Tempo:{' '}
+              {settings.useAdvancedTempo
+                ? `${settings.handsPerLevel} hands / level`
+                : settings.tempoPreset}
+            </li>
+            <li>Stakes: {settings.stakes}</li>
+            <li>Starting stack (each): {settings.startingStack}</li>
+          </ul>
+        </section>
       </div>
-      <section className="menu-meta">
-        <h2>Current setup</h2>
-        <ul>
-          <li>Opponents: {settings.opponentCount}</li>
-          <li>Difficulty: {settings.difficulty}</li>
-          <li>
-            Tempo:{' '}
-            {settings.useAdvancedTempo
-              ? `${settings.handsPerLevel} hands / level`
-              : settings.tempoPreset}
-          </li>
-          <li>Stakes: {settings.stakes}</li>
-          <li>Starting stack (each): {settings.startingStack}</li>
-        </ul>
-      </section>
     </div>
   )
 }
@@ -524,37 +526,30 @@ function PlayScreen({
     const b = bettingState(snap, idx, p)
     const hb = snap.streetHighBet
     const owe = hb > p.streetCommit ? hb - p.streetCommit : 0
-    const hole =
-      p.isHuman || showAllHoles
-        ? p.hole.map((c, i) => <PlayingCardFace key={i} c={c} kind="hole" />)
-        : p.hole.map((_, i) => (
-            <span key={i} className="card back">
-              ●
-            </span>
-          ))
-    const up = p.up.map((c, i) => <PlayingCardFace key={i} c={c} kind="up" />)
-    const holeLabel =
-      p.isHuman || showAllHoles ? 'Hole cards' : 'Hidden'
-    const upZone = (
+    const showHoleFaces = p.isHuman || showAllHoles
+    const oppOrSummaryLine = (
       <div
-        className="hand-zone hand-zone--up"
-        aria-label="Up cards, visible to all"
-      >
-        <span className="hand-zone-label">Up</span>
-        <div className="cards-row cards-row--spread">{up}</div>
-      </div>
-    )
-    const holeZone = (
-      <div
-        className="hand-zone hand-zone--hole"
+        className="hand-zone hand-zone--hero-line"
         aria-label={
-          p.isHuman || showAllHoles
-            ? 'Your hole cards'
-            : 'Opponent hole cards, not visible'
+          showHoleFaces ? 'All cards' : 'Opponent cards: down cards hidden'
         }
       >
-        <span className="hand-zone-label">{holeLabel}</span>
-        <div className="cards-row cards-row--hole-pocket">{hole}</div>
+        <div className="cards-row cards-row--hero-line">
+          {heroCardsInTableOrder(p.hole, p.up).map(({ card, faceKind, sunk }, i) =>
+            showHoleFaces || faceKind === 'up' ? (
+              <PlayingCardFace key={i} c={card} kind={faceKind} sunk={sunk} />
+            ) : (
+              <span
+                key={i}
+                className={['card', 'back', sunk ? 'card--hero-sunk' : '']
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                ●
+              </span>
+            ),
+          )}
+        </div>
       </div>
     )
     const heroLine =
@@ -602,14 +597,7 @@ function PlayScreen({
           <div className="street-chips">Round: {p.streetCommit}</div>
         ) : null}
         <div className="stack">Stack {p.stack}</div>
-        {heroSeat ? (
-          heroLine
-        ) : (
-          <div className="hand-zones">
-            {holeZone}
-            {upZone}
-          </div>
-        )}
+        {heroSeat ? heroLine : oppOrSummaryLine}
         {best ? <div className="best-hand">{handLabel(best)}</div> : null}
       </div>
     )

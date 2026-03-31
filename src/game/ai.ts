@@ -48,8 +48,9 @@ function handStrength01(score: HandScore | null): number {
 
 function razzStrength01(score: RazzLowScore | null): number {
   if (!score) return 0
-  const [a, b, c, d, e] = score
+  const [pairPenalty, a, b, c, d, e] = score
   const penalty =
+    pairPenalty * 0.42 +
     ((a - 1) / 12) * 0.55 +
     ((b - 1) / 12) * 0.2 +
     ((c - 1) / 12) * 0.13 +

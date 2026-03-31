@@ -1,6 +1,11 @@
 import type { Card, Rank } from './cards'
 
-export type RazzLowScore = readonly [number, number, number, number, number]
+/**
+ * [pairPenalty, high, next, next, next, low]
+ * pairPenalty: 0 = no pair, 1 = one pair, 2 = two pair, 3 = trips, 4 = full house, 5 = quads
+ * Lower tuple is better in Razz (A-5 low).
+ */
+export type RazzLowScore = readonly [number, number, number, number, number, number]
 export type RazzVisibleScore = readonly number[]
 
 function rankToRazzValue(r: Rank): number {
@@ -30,10 +35,18 @@ function combinations5(cards: Card[], out: Card[][]): void {
 }
 
 function evaluateFiveCardRazz(cards: Card[]): RazzLowScore {
-  const vals = cards
-    .map((c) => rankToRazzValue(c.rank))
-    .sort((a, b) => b - a) as [number, number, number, number, number]
-  return vals
+  const vals = cards.map((c) => rankToRazzValue(c.rank))
+  const counts = new Map<number, number>()
+  for (const v of vals) counts.set(v, (counts.get(v) ?? 0) + 1)
+  const groups = [...counts.values()].sort((a, b) => b - a)
+  let pairPenalty = 0
+  if (groups[0] === 4) pairPenalty = 5
+  else if (groups[0] === 3 && groups[1] === 2) pairPenalty = 4
+  else if (groups[0] === 3) pairPenalty = 3
+  else if (groups[0] === 2 && groups[1] === 2) pairPenalty = 2
+  else if (groups[0] === 2) pairPenalty = 1
+  const sorted = vals.sort((a, b) => b - a) as [number, number, number, number, number]
+  return [pairPenalty, ...sorted]
 }
 
 /** Positive means `a` is the better (lower) razz hand. */
@@ -74,6 +87,10 @@ function displayRank(v: number): string {
 }
 
 export function razzHandLabel(score: RazzLowScore): string {
-  return `${displayRank(score[0])}-${displayRank(score[1])} low`
+  const pairPenalty = score[0]
+  const hi = score[1]
+  const next = score[2]
+  const pairTag = pairPenalty > 0 ? ' (paired)' : ''
+  return `${displayRank(hi)}-${displayRank(next)} low${pairTag}`
 }
 
